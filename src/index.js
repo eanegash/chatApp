@@ -2,8 +2,8 @@ const path = require('path');
 const http = require('http');
 const socketio = require('socket.io');
 const express = require('express');
-const { generateMessage } = require('./utils/messages');
-const { generateLocationMessage } = require('./utils/messages');
+const { generateMessage, generateLocationMessage } = require('./utils/messages');
+const {addUser, removeUser, getUser, getUsersInRoom} = require('./utils/users');
 
 
 const app = express();
@@ -20,13 +20,23 @@ app.use(express.static(publicDirectoryPath));
 io.on('connection', (socket) => {
     console.log("New WebSocket Connection");
     
-    socket.on('join', ({ username, room }) => {
-        socket.join(room);
+    socket.on('join', ({ username, room }, ack) => {
+        //Destructure Object. End up w/ an error or user object (socket.id, username, room)
+        const {error, user} = addUser({id: socket.id, username, room});
+
+        //Error returned - send back an Acknowledgment (callback) letting client now of Error.
+        if (error){
+            return ack(error)
+        }
+        
+        socket.join(user.room);
 
         //Send Objects back when we emit/send message, using gernerateMessage() in messages.js
         socket.emit('message', generateMessage('Hello!'));
-        socket.broadcast.to(room).emit('message', generateMessage(`${username} has joined.`));
+        socket.broadcast.to(user.room).emit('message', generateMessage(`${user.username} has joined.`));
     });
+
+
 
     //Receive sendMessage on Server and when fired send message to all connected clients.
     socket.on('sendMessage', (message, ack) => {
@@ -34,12 +44,16 @@ io.on('connection', (socket) => {
         ack();
     });
 
+
+
     //Receive sendLocation on Server
     socket.on('sendLocation', function(location, ack) {
         io.emit('locationMessage', generateLocationMessage(`https://google.com/maps?q=${location.latitude},${location.longitude}`));
         ack('Your Location was Shared');
     });
 
+
+    //Disconnet Once User Left Room
     socket.on('disconnect', () => {
         io.emit('message', generateMessage('User Has Left.'));
     });

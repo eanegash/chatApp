@@ -69,4 +69,6 @@ $sendLocationButton.addEventListener('click', () => {
 });
 
 //Omit call from the Client. 
-socket.emit('join', { username, room });
+socket.emit('join', { username, room }, (error) => {
+    
+});
