@@ -32,30 +32,49 @@ io.on('connection', (socket) => {
         socket.join(user.room);
 
         //Send Objects back when we emit/send message, using gernerateMessage() in messages.js
-        socket.emit('message', generateMessage('Hello!'));
-        socket.broadcast.to(user.room).emit('message', generateMessage(`${user.username} has joined.`));
+        socket.emit('message', generateMessage('Admin', 'Welcome!'));
+        socket.broadcast.to(user.room).emit('message', generateMessage(user.username, `${user.username} has joined.`));
+        io.to(user.room).emit('roomData', {
+            room: user.room,
+            users: getUsersInRoom(user.room)
+        });
     });
 
 
 
     //Receive sendMessage on Server and when fired send message to all connected clients.
     socket.on('sendMessage', (message, ack) => {
-        io.emit('message', generateMessage(message));
-        ack();
-    });
+        const user = getUser(socket.id);
+        
+        io.to(user.room).emit('message', generateMessage(user.username, message));
+        ack(`${user.username}`);
 
+    });
 
 
     //Receive sendLocation on Server
     socket.on('sendLocation', function(location, ack) {
-        io.emit('locationMessage', generateLocationMessage(`https://google.com/maps?q=${location.latitude},${location.longitude}`));
-        ack('Your Location was Shared');
+
+        const user = getUser(socket.id);
+        
+        io.to(user.room).emit('locationMessage', generateLocationMessage(user.username, `https://google.com/maps?q=${location.latitude},${location.longitude}`));
+        ack(`${user.username} Has Shared Their Location!`); 
+    
     });
 
 
     //Disconnet Once User Left Room
     socket.on('disconnect', () => {
-        io.emit('message', generateMessage('User Has Left.'));
+        //With socket.id we have access to user information: username, room...
+        const user = removeUser(socket.id);
+        //User exists then remove them from the Room
+        if (user) {
+            io.to(user.room).emit('message', generateMessage(user.username, `${user.username} HAS LEFT!`));
+            io.to(user.room).emit('roomData', {
+                room: user.room,
+                users: getUsersInRoom(user.room)
+            });
+        }
     });
 });
 
